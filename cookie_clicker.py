@@ -2,6 +2,7 @@ import tkinter as tk
 import json
 import os
 import random
+import math
 from PIL import Image, ImageTk
 
 SAVE_FILE = "cookie_save.json"
@@ -57,9 +58,9 @@ def lerp(a, b, t):
 def draw_background(w, h):
     bg_canvas.delete("all")
 
-    # Vertical gradient: near-black chocolate → deep amber-brown
-    top_col    = (0x0D, 0x04, 0x00)
-    bottom_col = (0x2C, 0x10, 0x00)
+    # Vertical gradient: near-black midnight → deep navy blue
+    top_col    = (0x02, 0x03, 0x0E)
+    bottom_col = (0x04, 0x09, 0x1E)
     steps = 60
     for i in range(steps):
         t  = i / steps
@@ -70,38 +71,64 @@ def draw_background(w, h):
         y1 = int(h * (i + 1) / steps) + 1
         bg_canvas.create_rectangle(0, y0, w, y1, fill=f"#{r:02x}{g:02x}{b:02x}", outline="")
 
-    # Subtle cookie silhouettes scattered across the background
+    # Custom cookie silhouettes — scalloped edge + chip dots, all very subtle
+    FILL    = "#06091A"   # barely-lighter midnight blue for the cookie body
+    OUTLINE = "#0A1030"   # slightly lighter border
+    CHIP    = "#040614"   # darker dots for chips
+
     for fx, fy, radius, chips in DECOR:
         cx, cy = int(fx * w), int(fy * h)
+
+        # Cookie body
         bg_canvas.create_oval(cx - radius, cy - radius,
                               cx + radius, cy + radius,
-                              fill="#1E0A00", outline="#2E1600", width=1)
-        for dx, dy, cr in chips:
-            bg_canvas.create_oval(cx+dx-cr, cy+dy-cr,
-                                  cx+dx+cr, cy+dy+cr,
-                                  fill="#120600", outline="")
+                              fill=FILL, outline=OUTLINE, width=1)
 
-    # Warm radial glow centred on the cookie button zone
-    stats_bot = TOP_PAD + TITLE_H + 10 + STATS_H          # 158
+        # Scalloped edge: small bumps evenly spaced around the perimeter
+        num_bumps = max(6, radius // 5)
+        bump_r    = max(2, radius // 7)
+        for j in range(num_bumps):
+            angle = 2 * math.pi * j / num_bumps
+            bx = cx + int(radius * math.cos(angle))
+            by = cy + int(radius * math.sin(angle))
+            bg_canvas.create_oval(bx - bump_r, by - bump_r,
+                                  bx + bump_r, by + bump_r,
+                                  fill=FILL, outline=OUTLINE, width=1)
+
+        # Chocolate chip dots
+        for dx, dy, cr in chips:
+            bg_canvas.create_oval(cx + dx - cr, cy + dy - cr,
+                                  cx + dx + cr, cy + dy + cr,
+                                  fill=CHIP, outline="")
+
+    # Warm amber radial glow centred on the cookie button zone
+    # (kept warm to contrast against the cool blue background)
+    stats_bot = TOP_PAD + TITLE_H + 10 + STATS_H
     bot_y     = h - BOTTOM_H - 10
     shop_y    = bot_y - SHOP_H - 8
     glow_cy   = stats_bot + (shop_y - stats_bot) // 2
     glow_cx   = w // 2
-    glow_r    = int(min(w, h) * 0.30)
+    glow_r    = int(min(w, h) * 0.24)
     glow_steps = 30
     for i in range(glow_steps, 0, -1):
         t     = i / glow_steps
         r_px  = int(glow_r * t)
-        r_val = int(0x3A * (1 - t))
-        g_val = int(0x14 * (1 - t))
+        r_val = int(0x30 * (1 - t))
+        g_val = int(0x10 * (1 - t))
+        b_val = int(0x02 * (1 - t))
         bg_canvas.create_oval(glow_cx - r_px, glow_cy - r_px,
                               glow_cx + r_px, glow_cy + r_px,
-                              fill=f"#{r_val:02x}{g_val:02x}00", outline="")
+                              fill=f"#{r_val:02x}{g_val:02x}{b_val:02x}", outline="")
 
 # ── Cookie image ─────────────────────────────────────────
 cookie_pil = Image.open("cookie.png").convert("RGBA")
 cookie_pil.thumbnail((210, 210), Image.LANCZOS)
-cookie_image = ImageTk.PhotoImage(cookie_pil)
+
+# Composite cookie onto the panel background colour so transparent
+# pixels become dark rather than showing tkinter's default button grey.
+_cookie_bg = Image.new("RGBA", cookie_pil.size, (0x1A, 0x09, 0x00, 255))
+_cookie_bg.paste(cookie_pil, mask=cookie_pil.split()[3])   # alpha channel as mask
+cookie_image = ImageTk.PhotoImage(_cookie_bg.convert("RGB"))
 
 # ── Game state ───────────────────────────────────────────
 cookie_count       = 0
@@ -174,7 +201,8 @@ def click_cookie():
 
 click_button = tk.Button(root, image=cookie_image, command=click_cookie,
                          borderwidth=0, highlightthickness=0,
-                         cursor="hand2", relief=tk.FLAT)
+                         cursor="hand2", relief=tk.FLAT,
+                         bg="#1A0900", activebackground="#1A0900")
 click_button.image = cookie_image
 
 # ── Shop panel ────────────────────────────────────────────
